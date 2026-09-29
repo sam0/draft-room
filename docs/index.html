@@ -1,0 +1,392 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Draft Room</title>
+<meta name="description" content="Mock-draft your NFL fantasy team against eleven AI managers with strong opinions.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏈</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f3f1ec; --ink: #17181c; --muted: #636772; --card: #fff; --line: #dfdbd2; --soft: #f7f5f0;
+    --field: #1d5c3a; --accent: #e4572e; --gold: #f2b134;
+    --QB: #d64545; --RB: #1f9d6a; --WR: #2f6fd6; --TE: #e08a1e; --K: #8a5cd6; --DEF: #5f6672;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #111316; --ink: #ecebe7; --muted: #9a9fa9; --card: #1a1c20; --line: #2c2f35; --soft: #202328;
+      --field: #174a2f;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.45 Inter, system-ui, sans-serif; }
+  button { font: inherit; cursor: pointer; }
+  .cond { font-family: "Barlow Condensed", Inter, sans-serif; text-transform: uppercase; letter-spacing: .01em; }
+  .hidden { display: none !important; }
+
+  /* Setup */
+  .setup { min-height: 100vh; display: grid; place-items: center; padding: 24px 16px; background: radial-gradient(circle at 20% 0%, rgba(228,87,46,.12), transparent 50%), var(--bg); }
+  .setup-card { width: 100%; max-width: 460px; background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 28px; box-shadow: 0 20px 50px rgba(0,0,0,.08); }
+  .setup h1 { font-size: 54px; line-height: .9; margin: 0 0 8px; font-weight: 800; }
+  .setup p.sub { color: var(--muted); margin: 0 0 22px; }
+  .field { margin-bottom: 16px; }
+  .field label { display: block; font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 6px; }
+  .field input, .field select { width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--soft); color: var(--ink); font: inherit; }
+  .seg { display: flex; gap: 6px; }
+  .seg button { flex: 1; padding: 9px; border: 1px solid var(--line); border-radius: 10px; background: var(--soft); color: var(--ink); font-weight: 600; }
+  .seg button[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+  .go { width: 100%; padding: 13px; border: 0; border-radius: 12px; background: var(--accent); color: #fff; font-weight: 700; font-size: 16px; margin-top: 6px; }
+  .rivals { margin-top: 18px; font-size: 13px; color: var(--muted); }
+  .rivals b { color: var(--ink); }
+
+  /* Draft room */
+  .top { position: sticky; top: 0; z-index: 5; background: var(--field); color: #fff; }
+  .top-in { max-width: 1180px; margin: 0 auto; padding: 10px 16px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+  .brand { font-size: 24px; font-weight: 800; }
+  .clock { flex: 1; min-width: 220px; display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  .clock .num { font-size: 22px; font-weight: 800; }
+  .clock .who { font-weight: 600; }
+  .yourturn { background: var(--gold); color: #17181c; border-radius: 999px; padding: 2px 10px; font-weight: 700; font-size: 13px; animation: pulse 1.2s ease-in-out infinite; }
+  @keyframes pulse { 50% { transform: scale(1.06); } }
+  .top button { border: 1px solid rgba(255,255,255,.4); background: transparent; color: #fff; border-radius: 8px; padding: 6px 12px; font-weight: 600; font-size: 13px; }
+
+  .room { max-width: 1180px; margin: 0 auto; padding: 16px; display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 16px; }
+  @media (max-width: 900px) { .room { grid-template-columns: 1fr; } }
+  .panel { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px; }
+  .panel h2 { font-size: 20px; margin: 0 0 10px; font-weight: 800; }
+  .tabs { display: flex; gap: 6px; margin-bottom: 12px; }
+  .tabs button { border: 1px solid var(--line); background: var(--soft); color: var(--ink); padding: 6px 14px; border-radius: 999px; font-weight: 600; font-size: 13px; }
+  .tabs button[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+
+  .advice { display: grid; gap: 8px; margin-bottom: 14px; }
+  .tip { display: flex; gap: 10px; align-items: center; border: 1px dashed var(--line); border-radius: 12px; padding: 10px 12px; background: var(--soft); }
+  .tip .rank { font: 800 20px "Barlow Condensed", sans-serif; color: var(--accent); width: 18px; }
+  .tip .info { flex: 1; min-width: 0; }
+  .tip .why { font-size: 12px; color: var(--muted); }
+
+  .filters { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; align-items: center; }
+  .filters button { border: 1px solid var(--line); background: var(--card); color: var(--ink); border-radius: 8px; padding: 5px 10px; font-weight: 600; font-size: 12px; }
+  .filters button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
+  .filters input { flex: 1; min-width: 140px; padding: 7px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--soft); color: var(--ink); font: inherit; font-size: 13px; }
+  .list { max-height: 560px; overflow-y: auto; border-top: 1px solid var(--line); }
+  .row { display: grid; grid-template-columns: 44px 1fr 56px 56px 72px; gap: 8px; align-items: center; padding: 8px 4px; border-bottom: 1px solid var(--line); font-size: 14px; }
+  @media (max-width: 520px) { .row { grid-template-columns: 36px minmax(0,1fr) 34px 32px 52px; gap: 6px; font-size: 13px; } .row .tm { display: none; } .pos { min-width: 30px; font-size: 10px; } .list { max-height: 440px; } }
+  .row.head { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; position: sticky; top: 0; background: var(--card); z-index: 1; }
+  .row .nm { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .row .tm { font-size: 12px; color: var(--muted); font-weight: 400; }
+  .num-r { text-align: right; font-variant-numeric: tabular-nums; }
+  .pos { display: inline-block; min-width: 34px; text-align: center; color: #fff; border-radius: 6px; padding: 1px 4px; font: 700 11px Inter, sans-serif; }
+  .draft-btn { border: 0; background: var(--accent); color: #fff; border-radius: 8px; padding: 6px 0; font-weight: 700; font-size: 12px; width: 100%; }
+  .draft-btn:disabled { background: var(--line); color: var(--muted); cursor: not-allowed; }
+  .rookie { font-size: 10px; background: var(--gold); color: #17181c; border-radius: 4px; padding: 0 4px; margin-left: 4px; font-weight: 700; vertical-align: middle; }
+
+  .slots { display: grid; gap: 6px; }
+  .slot { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 10px; background: var(--soft); font-size: 14px; min-height: 36px; }
+  .slot .label { width: 40px; font: 700 12px Inter, sans-serif; color: var(--muted); }
+  .slot .empty { color: var(--muted); font-style: italic; font-size: 13px; }
+  .slot .pts { margin-left: auto; font-size: 12px; color: var(--muted); }
+  .benchlbl { margin: 12px 0 6px; font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+
+  .feed { margin-top: 16px; max-height: 320px; overflow-y: auto; display: grid; gap: 8px; }
+  .fi { display: flex; gap: 10px; align-items: flex-start; font-size: 13px; animation: slide .25s ease; }
+  @keyframes slide { from { opacity: 0; transform: translateY(-6px); } }
+  .avatar { width: 30px; height: 30px; border-radius: 50%; background: var(--soft); display: grid; place-items: center; font-size: 16px; flex: none; }
+  .fi .quip { color: var(--muted); font-style: italic; }
+  .fi.me .avatar { background: var(--gold); }
+
+  .board-wrap { overflow-x: auto; }
+  .board { border-collapse: separate; border-spacing: 3px; font-size: 11px; min-width: 900px; }
+  .board th { font-weight: 600; font-size: 11px; color: var(--muted); padding: 4px; white-space: nowrap; }
+  .board th.me { color: var(--accent); }
+  .board td { width: 78px; height: 40px; border-radius: 6px; padding: 3px 5px; vertical-align: top; color: #fff; line-height: 1.2; }
+  .board td.empty { background: var(--soft); }
+  .board td .bn { font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 74px; }
+  .board td.now { outline: 2px solid var(--gold); background: var(--soft); }
+
+  /* Results */
+  .results { max-width: 880px; margin: 0 auto; padding: 32px 16px 64px; }
+  .results h1 { font-size: 48px; margin: 0 0 4px; font-weight: 800; line-height: 1; }
+  .results .sub { color: var(--muted); margin: 0 0 22px; }
+  .highlights { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px; }
+  @media (max-width: 700px) { .highlights { grid-template-columns: 1fr; } }
+  .hl { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px; }
+  .hl .k { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; font-weight: 600; }
+  .hl .v { font: 800 30px "Barlow Condensed", sans-serif; }
+  .standings { width: 100%; border-collapse: collapse; background: var(--card); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+  .standings th, .standings td { padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--line); font-size: 14px; }
+  .standings th { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+  .standings tr.me td { background: rgba(242,177,52,.18); font-weight: 600; }
+  .grade { font: 800 20px "Barlow Condensed", sans-serif; }
+  .style { font-size: 12px; color: var(--muted); }
+  .again { margin-top: 20px; display: flex; gap: 10px; flex-wrap: wrap; }
+  .again button { padding: 11px 18px; border-radius: 10px; border: 1px solid var(--line); background: var(--card); color: var(--ink); font-weight: 700; }
+  .again button.primary { background: var(--accent); color: #fff; border: 0; }
+  footer { max-width: 1180px; margin: 0 auto; padding: 8px 16px 28px; font-size: 12px; color: var(--muted); }
+  footer a { color: var(--ink); }
+</style>
+</head>
+<body>
+
+<section class="setup" id="setupView">
+  <div class="setup-card">
+    <h1 class="cond">Draft<br>Room</h1>
+    <p class="sub">Mock-draft your fantasy football team against AI managers who all have strong opinions. 15 rounds, PPR scoring, 2026 projections.</p>
+    <div class="field"><label for="teamName">Your team name</label><input id="teamName" maxlength="24" value="My Team"></div>
+    <div class="field"><label>League size</label><div class="seg" id="sizeSeg"><button data-v="10">10 teams</button><button data-v="12" aria-pressed="true">12 teams</button></div></div>
+    <div class="field"><label for="slot">Your draft slot</label><select id="slot"></select></div>
+    <button class="go" id="start">Start the draft</button>
+    <div class="rivals" id="rivals"></div>
+  </div>
+</section>
+
+<section id="draftView" class="hidden">
+  <div class="top"><div class="top-in">
+    <div class="brand cond">Draft Room</div>
+    <div class="clock"><span class="num cond" id="clockPick"></span><span class="who" id="clockWho"></span><span class="yourturn hidden" id="yourTurn">You're on the clock</span></div>
+    <button id="simBtn">Skip to my pick</button>
+  </div></div>
+  <div class="room">
+    <div class="panel">
+      <div class="tabs"><button data-tab="players" aria-pressed="true">Players</button><button data-tab="board">Draft board</button></div>
+      <div id="playersTab">
+        <div class="advice" id="advice"></div>
+        <div class="filters" id="filters"></div>
+        <div class="list" id="list"></div>
+      </div>
+      <div id="boardTab" class="hidden"><div class="board-wrap"><table class="board" id="board"></table></div></div>
+    </div>
+    <div class="panel">
+      <h2 class="cond" id="myName">My team</h2>
+      <div class="slots" id="slots"></div>
+      <div class="benchlbl">Bench</div>
+      <div class="slots" id="bench"></div>
+      <h2 class="cond" style="margin-top:18px">Pick feed</h2>
+      <div class="feed" id="feed"></div>
+    </div>
+  </div>
+</section>
+
+<section id="resultsView" class="hidden">
+  <div class="results">
+    <h1 class="cond" id="resTitle"></h1>
+    <p class="sub" id="resSub"></p>
+    <div class="highlights" id="highlights"></div>
+    <table class="standings" id="standings"></table>
+    <div class="again"><button class="primary" id="againBtn">Draft again</button><button id="boardBtn">See the full board</button></div>
+  </div>
+</section>
+
+<footer id="footer"></footer>
+
+<script type="module">
+import { Draft, PERSONALITIES, lineup, ROUNDS } from './draft.js';
+
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const AVATAR = { 'Spreadsheet Steve': '📊', 'Zero-RB Zoe': '🙅', 'Homer Hank': '📣', 'Chaos Carl': '🎲', 'QB Quinn': '🎯', 'Rookie Rae': '🌱', 'Wideout Wes': '🙌', 'Bellcow Bo': '🐄', 'Tight End Tina': '🧱', 'Veteran Vic': '🧓', 'Autodraft Andy': '🥪' };
+const posChip = (pos) => `<span class="pos" style="background:var(--${pos})">${pos}</span>`;
+const avatar = (m) => (m.human ? '⭐' : AVATAR[m.name] || '🤖');
+
+const data = await fetch('data.json').then((r) => r.json());
+$('footer').innerHTML = `Projections and ADP: Sleeper, ${data.season} season, snapshot ${data.snapshot}. <a href="https://github.com/sam0/draft-room">Code on GitHub</a> · <a href="https://sam0.github.io/">More projects</a>`;
+
+// ---------- Setup ----------
+let size = 12;
+function fillSlots() {
+  $('slot').innerHTML = `<option value="0">Random</option>` + Array.from({ length: size }, (_, i) => `<option value="${i + 1}">Pick ${i + 1}</option>`).join('');
+}
+fillSlots();
+$('sizeSeg').addEventListener('click', (e) => {
+  const b = e.target.closest('button'); if (!b) return;
+  size = +b.dataset.v;
+  $('sizeSeg').querySelectorAll('button').forEach((x) => x.setAttribute('aria-pressed', x === b));
+  fillSlots();
+});
+$('rivals').innerHTML = 'Your rivals include ' + PERSONALITIES.slice(0, 4).map((p) => `${AVATAR[p.name]} <b>${p.name}</b> (${p.style[0].toLowerCase() + p.style.slice(1)})`).join(', ') + ', and more.';
+try { const saved = localStorage.getItem('draftroom.team'); if (saved) $('teamName').value = saved; } catch {}
+
+let draft, filter = 'ALL', query = '', busy = false, skipping = false;
+
+$('start').addEventListener('click', () => {
+  const name = $('teamName').value.trim() || 'My Team';
+  try { localStorage.setItem('draftroom.team', name); } catch {}
+  const slot = +$('slot').value || 1 + Math.floor(Math.random() * size);
+  draft = new Draft(data, { teams: size, slot, teamName: name });
+  $('myName').textContent = name;
+  $('feed').innerHTML = '';
+  show('draftView');
+  renderAll();
+  advance();
+});
+
+function show(id) {
+  for (const v of ['setupView', 'draftView', 'resultsView']) $(v).classList.toggle('hidden', v !== id);
+  window.scrollTo(0, 0);
+}
+
+// ---------- Draft loop ----------
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+async function advance() {
+  if (busy) return;
+  busy = true;
+  while (!draft.done && !draft.onClock.human) {
+    const entry = draft.botPick();
+    addFeed(entry);
+    if (!skipping) { renderAll(); await sleep(420); }
+  }
+  skipping = false;
+  busy = false;
+  if (draft.done) return finish();
+  renderAll();
+}
+
+function humanPick(id) {
+  if (busy || draft.done || !draft.onClock.human) return;
+  const p = draft.available.find((x) => x.id === id);
+  if (!p) return;
+  const top = draft.suggest(1)[0];
+  const why = top && top.p.id === p.id ? 'Took the top suggestion.' : draft.pickNo - p.adp > 8 ? 'Value pick.' : p.adp - draft.pickNo > 15 ? 'Bold reach. Respect.' : '';
+  addFeed(draft.makePick(p, why));
+  renderAll();
+  advance();
+}
+
+$('simBtn').addEventListener('click', () => { skipping = true; });
+
+// ---------- Rendering ----------
+function renderAll() {
+  const m = draft.onClock, mine = !draft.done && m.human;
+  $('clockPick').textContent = draft.done ? 'Draft complete' : `R${draft.round} · Pick ${draft.pickNo}`;
+  $('clockWho').textContent = draft.done ? '' : mine ? '' : `${avatar(m)} ${m.name} is picking…`;
+  $('yourTurn').classList.toggle('hidden', !mine);
+  $('simBtn').classList.toggle('hidden', mine || draft.done);
+  renderAdvice(mine);
+  renderFilters();
+  renderList(mine);
+  renderRoster();
+  if (!$('boardTab').classList.contains('hidden')) renderBoard();
+}
+
+function renderAdvice(mine) {
+  if (!mine) {
+    const me = draft.managers.findIndex((x) => x.human);
+    const next = draft.nextPickFor(me, draft.pickNo - 1);
+    $('advice').innerHTML = next ? `<div class="tip"><div class="info">Your next pick is <b>#${next}</b>. Suggestions show up when you're on the clock.</div></div>` : '';
+    return;
+  }
+  $('advice').innerHTML = draft.suggest(3).map((s, i) => `
+    <div class="tip"><div class="rank">${i + 1}</div>
+      <div class="info"><div>${posChip(s.p.pos)} <b>${esc(s.p.n)}</b> <span class="tm">${s.p.t}</span></div>
+      <div class="why">${esc(s.reasons.join(' · '))}</div></div>
+      <button class="draft-btn" style="width:72px" data-id="${s.p.id}">Draft</button></div>`).join('');
+}
+
+function renderFilters() {
+  const opts = ['ALL', 'QB', 'RB', 'WR', 'TE', 'K', 'DEF'];
+  if (!$('filters').dataset.built) {
+    $('filters').innerHTML = opts.map((o) => `<button data-f="${o}">${o}</button>`).join('') + `<input id="search" placeholder="Search players" aria-label="Search players">`;
+    $('filters').dataset.built = '1';
+    $('filters').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) { filter = b.dataset.f; renderAll(); } });
+    $('search').addEventListener('input', (e) => { query = e.target.value.toLowerCase(); renderList(draft.onClock.human && !draft.done); });
+  }
+  $('filters').querySelectorAll('button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.f === filter));
+}
+
+function renderList(mine) {
+  const rows = draft.available
+    .filter((p) => (filter === 'ALL' || p.pos === filter) && (!query || p.n.toLowerCase().includes(query)))
+    .slice(0, 150);
+  $('list').innerHTML = `<div class="row head"><span>Pos</span><span>Player</span><span class="num-r">ADP</span><span class="num-r">Proj</span><span></span></div>` +
+    rows.map((p) => `<div class="row">${posChip(p.pos)}<span class="nm">${esc(p.n)}${p.rk ? '<span class="rookie">R</span>' : ''} <span class="tm">${p.t}</span></span>
+      <span class="num-r">${p.adp.toFixed(1)}</span><span class="num-r">${Math.round(p.pts)}</span>
+      <button class="draft-btn" data-id="${p.id}" ${mine ? '' : 'disabled'}>Draft</button></div>`).join('');
+}
+
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('.draft-btn');
+  if (b && !b.disabled) humanPick(b.dataset.id);
+});
+
+function renderRoster() {
+  const me = draft.managers.find((x) => x.human);
+  const lu = lineup(me.roster);
+  const labels = ['QB', 'RB', 'RB', 'WR', 'WR', 'TE', 'FLEX', 'K', 'DEF'];
+  const starters = [...lu.starters];
+  const slotFor = (label) => {
+    const want = label === 'FLEX' ? ['RB', 'WR', 'TE'] : [label];
+    const i = starters.findIndex((p) => want.includes(p.pos));
+    return i >= 0 ? starters.splice(i, 1)[0] : null;
+  };
+  // Fill fixed slots first, then FLEX, so FLEX gets the leftover skill player
+  const filled = labels.map((l) => (l === 'FLEX' ? null : slotFor(l)));
+  filled[labels.indexOf('FLEX')] = slotFor('FLEX');
+  $('slots').innerHTML = labels.map((l, i) => {
+    const p = filled[i];
+    return `<div class="slot"><span class="label">${l}</span>${p ? `${posChip(p.pos)} <span>${esc(p.n)}</span><span class="pts">${Math.round(p.pts)}</span>` : '<span class="empty">empty</span>'}</div>`;
+  }).join('');
+  $('bench').innerHTML = lu.bench.length
+    ? lu.bench.map((p) => `<div class="slot">${posChip(p.pos)} <span>${esc(p.n)}</span><span class="pts">${Math.round(p.pts)}</span></div>`).join('')
+    : '<div class="slot"><span class="empty">nobody yet</span></div>';
+}
+
+function addFeed(entry) {
+  const m = entry.manager;
+  const el = document.createElement('div');
+  el.className = 'fi' + (m.human ? ' me' : '');
+  el.innerHTML = `<div class="avatar">${avatar(m)}</div><div><b>${esc(m.name)}</b> took ${posChip(entry.player.pos)} <b>${esc(entry.player.n)}</b> <span class="tm">#${entry.pickNo}</span>${entry.why ? `<div class="quip">“${esc(entry.why)}”</div>` : ''}</div>`;
+  $('feed').prepend(el);
+  while ($('feed').children.length > 40) $('feed').lastChild.remove();
+}
+
+function renderBoard() {
+  const t = draft.teams;
+  let html = '<tr><th></th>' + draft.managers.map((m) => `<th class="${m.human ? 'me' : ''}">${avatar(m)} ${esc(m.human ? (m.name.length > 10 ? m.name.slice(0, 9) + '…' : m.name) : m.name.split(' ').slice(-1)[0])}</th>`).join('') + '</tr>';
+  const byPick = Object.fromEntries(draft.log.map((l) => [l.pickNo, l]));
+  for (let r = 1; r <= ROUNDS; r++) {
+    html += `<tr><th>R${r}</th>`;
+    for (let c = 0; c < t; c++) {
+      const pickNo = (r - 1) * t + (r % 2 === 1 ? c + 1 : t - c);
+      const l = byPick[pickNo];
+      if (l) html += `<td style="background:var(--${l.player.pos})"><div class="bn">${esc(l.player.n.split(' ').slice(-1)[0])}</div>${l.player.pos} · ${l.player.t}</td>`;
+      else html += `<td class="empty ${pickNo === draft.pickNo ? 'now' : ''}"></td>`;
+    }
+    html += '</tr>';
+  }
+  $('board').innerHTML = html;
+}
+
+document.querySelector('.tabs').addEventListener('click', (e) => {
+  const b = e.target.closest('button'); if (!b) return;
+  document.querySelectorAll('.tabs button').forEach((x) => x.setAttribute('aria-pressed', x === b));
+  $('playersTab').classList.toggle('hidden', b.dataset.tab !== 'players');
+  $('boardTab').classList.toggle('hidden', b.dataset.tab !== 'board');
+  if (b.dataset.tab === 'board') renderBoard();
+});
+
+// ---------- Results ----------
+function finish() {
+  renderAll();
+  const { table, steal, reach } = draft.results();
+  const me = table.find((r) => r.m.human);
+  const verdicts = { 1: 'Champion of the draft room.', 2: 'So close. Chaos Carl sends his regards.', 3: 'Podium finish. Solid work.' };
+  $('resTitle').textContent = `Grade: ${me.grade}`;
+  $('resSub').textContent = `${esc(me.m.name)} finished #${me.rank} of ${draft.teams} by projected starting lineup. ${verdicts[me.rank] || (me.rank > draft.teams - 3 ? 'Autodraft Andy is thrilled for you.' : 'Mid-table. Plenty of season left.')}`;
+  $('highlights').innerHTML = `
+    <div class="hl"><div class="k">Projected starters</div><div class="v">${Math.round(me.starterPts)} pts</div></div>
+    <div class="hl"><div class="k">Best value</div><div class="v">${esc(steal.player.n.split(' ').slice(-1)[0])}</div><div class="style">pick #${steal.pickNo}, ADP ${steal.player.adp.toFixed(0)}</div></div>
+    <div class="hl"><div class="k">Biggest reach</div>${reach ? `<div class="v">${esc(reach.player.n.split(' ').slice(-1)[0])}</div><div class="style">pick #${reach.pickNo}, ADP ${reach.player.adp.toFixed(0)}</div>` : '<div class="v">None</div><div class="style">Disciplined. Spreadsheet Steve approves.</div>'}</div>`;
+  $('standings').innerHTML = '<tr><th>#</th><th>Manager</th><th>Grade</th><th>Starters</th></tr>' +
+    table.map((r) => `<tr class="${r.m.human ? 'me' : ''}"><td>${r.rank}</td><td>${avatar(r.m)} ${esc(r.m.name)}${r.m.style ? `<div class="style">${esc(r.m.style)}${r.m.team ? ` (${r.m.team})` : ''}</div>` : ''}</td><td class="grade">${r.grade}</td><td>${Math.round(r.starterPts)}</td></tr>`).join('');
+  show('resultsView');
+}
+
+$('againBtn').addEventListener('click', () => show('setupView'));
+$('boardBtn').addEventListener('click', () => {
+  show('draftView');
+  document.querySelector('.tabs button[data-tab="board"]').click();
+});
+</script>
+</body>
+</html>
